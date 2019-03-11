@@ -24,22 +24,21 @@ type CommandWatch func(times int, frame []byte, size int, e error) (stop bool)
 // WatchConfig for ExecuteWatch
 type WatchConfig struct {
 	Callback  CommandWatch
+	Errorback CommandWatch
 	FrameSize int
 	KillError func(error, *exec.Cmd)
 	Sleep     time.Duration
 }
 
-// WG for goroutine
-var WG sync.WaitGroup
-
 // ExecuteWatch Command
-func ExecuteWatch(cfg *WatchConfig, name string, args ...string) {
+func ExecuteWatch(cfg *WatchConfig, name string, args ...string) (*sync.WaitGroup, *exec.Cmd) {
+	var wg sync.WaitGroup
 	if cfg == nil {
 		panic("WatchConfig chouldn't be nil")
 	}
 	fn := cfg.Callback
 	if fn == nil {
-		return
+		return &wg, nil
 	}
 	framwSize := cfg.FrameSize
 	if framwSize < 1024 {
@@ -51,14 +50,19 @@ func ExecuteWatch(cfg *WatchConfig, name string, args ...string) {
 	if e != nil {
 		panic(e)
 	}
+	stderr, e := cmd.StderrPipe()
+	if e != nil {
+		panic(e)
+	}
 
 	cmd.Start()
 	r := bufio.NewReader(stdout)
+	r2 := bufio.NewReader(stderr)
 
-	WG.Add(1)
+	stop := false
+	wg.Add(1)
 	go func() {
 		times := 0
-		stop := false
 		for !stop {
 			if cfg.Sleep > 0 {
 				time.Sleep(cfg.Sleep)
@@ -67,7 +71,7 @@ func ExecuteWatch(cfg *WatchConfig, name string, args ...string) {
 			n, e := r.Read(buf)
 			times++
 			if e == io.EOF {
-				WG.Done()
+				wg.Done()
 				return
 			}
 			if e != nil {
@@ -80,8 +84,42 @@ func ExecuteWatch(cfg *WatchConfig, name string, args ...string) {
 				if e != nil && cfg.KillError != nil {
 					cfg.KillError(e, cmd)
 				}
-				WG.Done()
+				wg.Done()
 			}
 		}
 	}()
+
+	fn2 := cfg.Errorback
+	if fn2 != nil {
+		wg.Add(1)
+		go func() {
+			times := 0
+			for !stop {
+				if cfg.Sleep > 0 {
+					time.Sleep(cfg.Sleep)
+				}
+				buf := make([]byte, framwSize)
+				n, e := r2.Read(buf)
+				times++
+				if e == io.EOF {
+					wg.Done()
+					return
+				}
+				if e != nil {
+					stop = fn2(times, nil, 0, e)
+				} else {
+					stop = fn2(times, buf[:n], n, nil)
+				}
+				if stop {
+					e = cmd.Process.Kill()
+					if e != nil && cfg.KillError != nil {
+						cfg.KillError(e, cmd)
+					}
+					wg.Done()
+				}
+			}
+		}()
+	}
+
+	return &wg, cmd
 }

@@ -1,6 +1,7 @@
 package gsys
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -20,7 +21,7 @@ func TestExecuteWithArgs(t *testing.T) {
 }
 
 func TestExecuteWatch(t *testing.T) {
-	ExecuteWatch(&WatchConfig{
+	wg, cmd := ExecuteWatch(&WatchConfig{
 		Callback: func(times int, f []byte, n int, e error) bool {
 			lines := strings.Split(string(f), "\n")
 			switch times {
@@ -34,5 +35,6 @@ func TestExecuteWatch(t *testing.T) {
 		FrameSize: 1024 * 1024,
 		// Sleep:     time.Duration(1) * time.Second,
 	}, "ping", "baidu.com", "-c 5")
-	WG.Wait()
+	wg.Wait()
+	fmt.Println(*cmd)
 }
