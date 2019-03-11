@@ -1,6 +1,7 @@
 package gsys
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -16,4 +17,22 @@ func TestExecuteWithArgs(t *testing.T) {
 	if ret != "x86_64 GNU/Linux\n" {
 		t.Errorf("`uname` should return `x86_64 GNU/Linux`, but `%s`", ret)
 	}
+}
+
+func TestExecuteWatch(t *testing.T) {
+	ExecuteWatch(&WatchConfig{
+		Callback: func(times int, f []byte, n int, e error) bool {
+			lines := strings.Split(string(f), "\n")
+			switch times {
+			case 1:
+				println(lines[1])
+			default:
+				println(lines[0])
+			}
+			return false
+		},
+		FrameSize: 1024 * 1024,
+		// Sleep:     time.Duration(1) * time.Second,
+	}, "ping", "baidu.com", "-c 5")
+	WG.Wait()
 }

@@ -9,5 +9,9 @@ The List of Commands:
     + [ ] ss
 + iptables
     + [ ] iptables
++ icmp
+    + [ ] ping
 
 About FileSystem: [aferox](https://github.com/ddosakura/aferox)
+
+About Monitor: [gopsutil](https://github.com/shirou/gopsutil)
